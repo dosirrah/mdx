@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
-# This can exists in the repositor at  
-#
-#  https://github.com/dosirrah/mdx
-#
+# mdx.py: Markdown preprocessor for numbered references.
+# Repository: https://github.com/dosirrah/mdx
 
 import re
 import argparse
 import os
+import sys
+
+class UndefinedReferenceError(KeyError):
+    """Custom exception for undefined references in the Markdown file."""
+    pass
 
 def process_references(input_file):
     """
@@ -27,61 +30,95 @@ def process_references(input_file):
     label_map = {}  # Stores {label: number}
     group_counters = {}  # Stores counters for named groups
     global_counter = 1  # Default global numbering
+    missing_references = []  # Track undefined references
 
     updated_lines = []
-
+    
     # Step 1: Assign numbers to labeled elements
-    for line in lines:
-        match = re.search(r"@(\w+):(\w+)", line)  # Detects @group:label
-        global_match = re.search(r"@(\w+)", line)  # Detects @label (global)
-
-        if match:
+    for line_num, line in enumerate(lines, start=1):
+    
+        # Detect if we're inside a table row (line starts and ends with | and contains non-whitespace characters)
+        inside_table = re.match(r"^\s*\|.*\S.*\|\s*$", line) is not None
+    
+        # Replace all named enumeration labels (e.g., @prob:one → 1)
+        def replace_named_label(match):
+            nonlocal group_counters
             group, label = match.groups()
-            if group not in group_counters:
-                group_counters[group] = 1
             label_key = f"{group}:{label}"
-            label_map[label_key] = group_counters[group]
-            label_width = len(f"@{group}:{label}")  # Measure label length
-            line = line.replace(f"@{group}:{label}", str(group_counters[group]))
-            group_counters[group] += 1
-        
-        elif global_match:
-            label = global_match.group(1)
-            label_map[label] = global_counter
-            label_width = len(f"@{label}")  # Measure label length
-            line = line.replace(f"@{label}", str(global_counter))
-            global_counter += 1
+    
+            if label_key not in label_map:
+                if group not in group_counters:
+                    group_counters[group] = 1
+                label_map[label_key] = str(group_counters[group])
+                group_counters[group] += 1
+    
+            label_number = label_map[label_key]
+            return label_number.ljust(len(match.group(0))) if inside_table else label_number
+    
+        line = re.sub(r"@([a-zA-Z0-9_]+):([a-zA-Z0-9_]+)", replace_named_label, line)
+    
+        # Replace all global enumeration labels (e.g., @label → 1)
+        def replace_global_label(match):
+            nonlocal global_counter
+            label = match.group(1)
 
+            if label not in label_map:
+                label_map[label] = str(global_counter)
+                global_counter += 1
+    
+            label_number = label_map[label]
+            return label_number.ljust(len(match.group(0))) if inside_table else label_number
+    
+        line = re.sub(r"@([a-zA-Z0-9_]+)", replace_global_label, line)
+    
         updated_lines.append(line)
-
+    
     # Step 2: Replace references and preserve table alignment
     final_lines = []
-    inside_table = False  # Track if we are inside a Markdown table
+    #inside_table = False  # Track whether we're inside a Markdown table
 
-    for line in updated_lines:
-        if "|" in line:  # Detect potential table row
-            inside_table = True
-        else:
-            inside_table = False
+    for line_num, line in enumerate(updated_lines, start=1):
 
-        if inside_table:
-            # Find all references in the table row
-            matches = re.findall(r"(?<!^)#(\w+):(\w+)|(?<!^)#(\w+)", line)
-            for match in matches:
-                group_label = f"{match[0]}:{match[1]}" if match[0] else None
-                global_label = match[2] if match[2] else None
-                
-                if group_label and group_label in label_map:
-                    original_length = len(f"#{group_label}")
-                    replacement = str(label_map[group_label]).ljust(original_length)
-                    line = line.replace(f"#{group_label}", replacement)
-                
-                elif global_label and global_label in label_map:
-                    original_length = len(f"#{global_label}")
-                    replacement = str(label_map[global_label]).ljust(original_length)
-                    line = line.replace(f"#{global_label}", replacement)
-        
+        # Detect if we're inside a Markdown table row
+        inside_table = re.match(r"^\s*\|.*\S.*\|\s*$", line) is not None
+    
+        # Function to replace references while preserving table formatting
+        def replace_reference(match):
+            group, label, global_label = match.groups()
+            
+            # Determine the correct reference key (named or global)
+            if group and label:
+                ref_key = f"{group}:{label}"
+            else:
+                ref_key = global_label
+    
+            # Check if reference exists
+            if ref_key in label_map:
+                replacement = label_map[ref_key]
+            else:
+                print(f"Warning: Undefined reference '{ref_key}' on line {line_num}", file=sys.stderr)
+                missing_references.append((line_num, ref_key))
+                return match.group(0)  # Keep the original reference if it's undefined
+    
+            # Preserve alignment in tables
+            if inside_table:
+                return replacement.ljust(len(match.group(0)))
+            return replacement
+    
+        # Replace all references in the line
+        line = re.sub(r"(?<!^)#(\w+):(\w+)|(?<!^)#(\w+)", replace_reference, line)
+    
         final_lines.append(line)
+
+    # If there are undefined references, raise a custom exception at the end
+    if missing_references:
+        error_message = f"\nSummary: {len(missing_references)} undefined references found!\n"
+        for line_num, label in missing_references:
+            error_message += f"  - Undefined reference '{label}' on line {line_num}\n"
+        raise UndefinedReferenceError(error_message)
+
+    # Insert a comment at the top of the file
+    final_lines.insert(0, f"<!-- Generated by mdx.py from {input_file}. You can obtain mdx.py from https://github.com/dosirrah/mdx -->\n")
 
     # Write processed content to new .md file
     with open(output_file, "w", encoding="utf-8") as file:
@@ -89,11 +126,22 @@ def process_references(input_file):
 
     print(f"Processed file saved as: {output_file}")
 
-# Command-line argument handling
-if __name__ == "__main__":
+def main():
+    """Handles command-line arguments and runs the reference processor."""
     parser = argparse.ArgumentParser(description="Process .mdx Markdown references and numbering.")
     parser.add_argument("input_file", help="Path to the .mdx file.")
 
     args = parser.parse_args()
-    process_references(args.input_file)
+
+    try:
+        process_references(args.input_file)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except UndefinedReferenceError as e:
+        print(f"Reference Error:\n{e}", file=sys.stderr)
+        sys.exit(2)
+
+if __name__ == "__main__":
+    main()
 
