@@ -28,7 +28,7 @@ def strip_leading_comment(lines):
         return lines[1:]  # Ignore the first line
     return lines
 
-def ctest_leading_comment(temp_mdx_file):
+def test_leading_comment(temp_mdx_file):
     """Test that the generated Markdown file contains a proper leading comment."""
     content = "Some example text."
     
