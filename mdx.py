@@ -1,13 +1,15 @@
 #!/usr/bin/env python
+"""This modules contains tools for preprocessing markdown files. This preprocessor adds
+   support for references and labels.   See READE.md in this directory for details."""
 
 import re
 import argparse
 import os
+import json
 import sys
 
 class UndefinedReferenceError(KeyError):
     """Custom exception for undefined references in the Markdown file."""
-    pass
 
 class MarkdownProcessor:
     """
@@ -34,38 +36,48 @@ class MarkdownProcessor:
         def replace_named_label(match):
             group, label = match.groups()
             label_key = f"{group}:{label}"
-    
+
             if label_key not in self.label_map:
                 if group not in self.group_counters:
                     self.group_counters[group] = 1
                 self.label_map[label_key] = str(self.group_counters[group])
                 self.group_counters[group] += 1
-    
+
             label_number = self.label_map[label_key]
             return label_number.ljust(len(match.group(0))) if inside_table else label_number
 
 
         def replace_global_label(match):
-            
+
             label = match.group(1)
 
             if label not in self.label_map:
                 self.label_map[label] = str(self.global_counter)
                 self.global_counter += 1
-    
+
             label_number = self.label_map[label]
 
             return label_number.ljust(len(match.group(0))) if inside_table else label_number
 
         labelled_lines = []
-        
+
         # Apply label collection but do not replace anything yet
         for markdown_text in markdown_lines:
             # self.line_num +=1   # only inc line numbers in second pass, iee., replace_references
 
             # Detect if we're inside a table row (line starts and ends
             # with | and contains non-whitespace characters)
+            #
+            # |--------|--------------------------------------|
+            # |   ^    |  start of line                       |
+            # |  \s*   |  zero-or-more whitespaces.           |
+            # |   |    |  literal pipe                        |
+            # |  .*    |  any characters (including spaces)   |
+            # |  \S    |  at least one whitespace.            |
+            # |   $    |  end of line                         |
+            # |--------|--------------------------------------|
             inside_table = re.match(r"^\s*\|.*\S.*\|\s*$", markdown_text) is not None
+            #print("1 !@#!@# collect_labels inside_table %s" % inside_table)
 
             markdown_text = re.sub(r"@([a-zA-Z0-9_]+):([a-zA-Z0-9_]+)",
                                    replace_named_label, markdown_text)
@@ -82,21 +94,22 @@ class MarkdownProcessor:
 
         def replace_reference(match):
             group, label, global_label = match.groups()
-            
+
             # Determine the correct reference key (named or global)
             if group and label:
                 ref_key = f"{group}:{label}"
             else:
                 ref_key = global_label
-    
+
             # Check if reference exists
             if ref_key in self.label_map:
                 replacement = self.label_map[ref_key]
             else:
-                print(f"Warning: Undefined reference '{ref_key}' on line {self.line_num}", file=sys.stderr)
+                print(f"Warning: Undefined reference '{ref_key}' on line {self.line_num}",
+                      file=sys.stderr)
                 missing_references.append((self.line_num, ref_key))
                 return match.group(0)  # Keep the original reference if it's undefined
-    
+
             # Preserve alignment in tables
             if inside_table:
                 return replacement.ljust(len(match.group(0)))
@@ -111,13 +124,15 @@ class MarkdownProcessor:
 
             # Detect if we're inside a table row (line starts and ends
             # with | and contains non-whitespace characters)
+
             inside_table = re.match(r"^\s*\|.*\S.*\|\s*$", markdown_text) is not None
+            #print("1 !@#!@# replace_references inside_table %s" % inside_table)
 
             re.sub(r"(?<!^)#(\w+):(\w+)|(?<!^)#(\w+)", replace_reference, markdown_text)
 
             # Replace all references in the line
             line = re.sub(r"(?<!^)#(\w+):(\w+)|(?<!^)#(\w+)", replace_reference, markdown_text)
-    
+
             final_lines.append(line)
 
         # If there are undefined references, raise a custom exception at the end
@@ -128,13 +143,13 @@ class MarkdownProcessor:
             raise UndefinedReferenceError(error_message)
 
         return final_lines
-            
+
     def process_markdown(self, markdown_lines):
         """
         Processes a Markdown document in two passes.
         Returns processed text with assigned numbers and replaced references.
         """
-        self.reset()
+        #self.reset()
         labelled_lines = self.collect_labels(markdown_lines)
         return self.replace_references(labelled_lines)
 
@@ -150,7 +165,7 @@ def process_mdx_file(input_file):
 
     with open(input_file, "r", encoding="utf-8") as file:
         markdown_lines = file.readlines()
-    
+
     #with open(input_file, "r", encoding="utf-8") as file:
     #    markdown_text = file.read()
 
@@ -158,26 +173,70 @@ def process_mdx_file(input_file):
     processed_text = processor.process_markdown(markdown_lines)
 
     with open(output_file, "w", encoding="utf-8") as file:
-        file.write(f"<!-- Generated by mdx.py from {input_file}. You can obtain mdx.py from https://github.com/dosirrah/mdx -->\n")
+        file.write(f"<!-- Generated by mdx.py from {input_file}. "
+                   "You can obtain mdx.py from https://github.com/dosirrah/mdx -->\n")
         file.writelines(processed_text)
 
     print(f"Processed file saved as: {output_file}")
 
+
+
+def process_notebook(input_file):
+    """
+    Reads a Jupyter or Databricks notebook (`.ipynb`, `.source`),
+    processes Markdown cells, and writes the modified notebook.
+    """
+    base_name, ext = os.path.splitext(input_file)
+    if ext.lower() not in {".ipynb", ".source"}:
+        raise ValueError("Error: Input file must be a .ipynb or .source notebook.")
+
+    output_file = f"{base_name}_processed{ext}"
+
+    with open(input_file, "r", encoding="utf-8") as file:
+        notebook_json = json.load(file)
+
+    processor = MarkdownProcessor()
+
+    # Process each cell in place
+    for cell in notebook_json.get("cells", []):
+        if cell.get("cell_type") == "markdown":
+            if isinstance(cell["source"], list):
+                # Jupyter format: list of strings
+                lines = [line.rstrip("\n") for line in cell["source"]]
+                processed_lines = processor.process_markdown(lines)
+                cell["source"] = \
+                    [line + "\n" for line in processed_lines[:-1]] + [processed_lines[-1]]
+            else:
+                # Databricks format: single string
+                lines = cell["source"].splitlines()
+                processed_lines = processor.process_markdown(lines)
+                cell["source"] = "\n".join(processed_lines)
+
+    with open(output_file, "w", encoding="utf-8") as file:
+        json.dump(notebook_json, file, indent=2)
+
+    print(f"Processed notebook saved as: {output_file}")
+
+### **Main CLI Handler**
 def main():
-    """Handles command-line arguments and runs the reference processor."""
-    parser = argparse.ArgumentParser(description="Process .mdx Markdown references and numbering.")
-    parser.add_argument("input_file", help="Path to the .mdx file.")
+    """Handles command-line arguments and runs the reference preprocessor."""
+    parser = argparse.ArgumentParser(description="Process Markdown references and numbering.")
+    parser.add_argument("input_file", help="Path to the input file (.mdx, .ipynb, .source).")
 
     args = parser.parse_args()
 
     try:
-        process_mdx_file(args.input_file)
+        if args.input_file.endswith(".mdx"):
+            process_mdx_file(args.input_file)
+        elif args.input_file.endswith((".ipynb", ".source")):
+            process_notebook(args.input_file)
+        else:
+            raise ValueError("Unsupported file format. Use .mdx, .ipynb, or .source.")
+
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-    except UndefinedReferenceError as e:
-        print(f"Reference Error:\n{e}", file=sys.stderr)
-        sys.exit(2)
+
 
 if __name__ == "__main__":
     main()
