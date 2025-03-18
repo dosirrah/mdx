@@ -1,7 +1,7 @@
-# mdx
+# mdxrp
 
 
-`mdx` is a set of markdown extensions and a preprocessor for converting the
+`mdxrp` is a set of markdown extensions and a preprocessor for converting the
 mdx into valid markdown.  So far these extensions only add the ability
 to include labels and references. 
 
