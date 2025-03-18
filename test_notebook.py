@@ -139,7 +139,7 @@ def test_basic_label_resolution(temp_notebook_file, file_extension):
 
     print(f"2 test_basic_label_reslution: temp_notebook_file={temp_file}")
     write_test_notebook(temp_file, markdown_cells)
-    process_notebook(temp_file)
+    process_notebook(temp_file, processed_file)
 
     processed_cells = read_processed_notebook(processed_file)
 
@@ -157,7 +157,7 @@ def test_global_enumeration(temp_notebook_file, file_extension):
     markdown_cells = ["First label: @alpha\nAnother reference: #alpha"]
     
     write_test_notebook(temp_file, markdown_cells)
-    process_notebook(temp_file)
+    process_notebook(temp_file, processed_file)
 
     processed_cells = read_processed_notebook(processed_file)
 
@@ -174,7 +174,7 @@ def test_named_enumeration(temp_notebook_file, file_extension):
     markdown_cells = ["First problem: @prob:first\nFirst figure: @fig:first\nSee #prob:first and #fig:first"]
     
     write_test_notebook(temp_notebook_file, markdown_cells)
-    process_notebook(temp_notebook_file)
+    process_notebook(temp_notebook_file, processed_file)
 
     processed_cells = read_processed_notebook(processed_file)
 
@@ -192,7 +192,7 @@ def test_undefined_reference(temp_notebook_file, file_extension):
     write_test_notebook(temp_notebook_file, markdown_cells)
     
     with pytest.raises(KeyError):
-        process_notebook(temp_notebook_file)
+        process_notebook(temp_notebook_file, processed_file)
 
 @pytest.mark.parametrize("file_extension", [".ipynb", ".source"])
 def test_later_referenced_labels(temp_notebook_file, file_extension):
@@ -202,7 +202,7 @@ def test_later_referenced_labels(temp_notebook_file, file_extension):
     markdown_cells = ["Reference to #topic:intro.\nLater, the label is defined: @topic:intro."]
     
     write_test_notebook(temp_notebook_file, markdown_cells)
-    process_notebook(temp_notebook_file)
+    process_notebook(temp_notebook_file, processed_file)
 
     processed_cells = read_processed_notebook(processed_file)
 
@@ -218,7 +218,7 @@ def test_multiple_references_to_same_label(temp_notebook_file, file_extension):
     markdown_cells = ["@step:one\nNow referring back to #step:one and again #step:one."]
     
     write_test_notebook(temp_notebook_file, markdown_cells)
-    process_notebook(temp_notebook_file)
+    process_notebook(temp_notebook_file, processed_file)
 
     processed_cells = read_processed_notebook(processed_file)
 
@@ -241,7 +241,7 @@ def test_multiple_labels_in_table(temp_notebook_file, file_extension):
     ]
 
     write_test_notebook(temp_notebook_file, markdown_cells)
-    process_notebook(temp_notebook_file)
+    process_notebook(temp_notebook_file, processed_file)
 
     processed_cells = read_processed_notebook(processed_file)
     print(f"######processed_cells:\n{processed_cells}\n######")
@@ -271,7 +271,7 @@ def test_reference_on_last_line(temp_notebook_file, file_extension):
     ]
 
     write_test_notebook(temp_notebook_file, markdown_cells)
-    process_notebook(temp_notebook_file)
+    process_notebook(temp_notebook_file, processed_file)
 
     processed_cells = read_processed_notebook(processed_file)
 
@@ -304,7 +304,7 @@ def test_jupyter_notebook_multiple_markdown_cells(temp_notebook_file, file_exten
     ]
 
     write_test_notebook(temp_notebook_file, markdown_cells)
-    process_notebook(temp_notebook_file)
+    process_notebook(temp_notebook_file, processed_file)
 
     processed_cells = read_processed_notebook(processed_file)
 

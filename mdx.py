@@ -153,7 +153,7 @@ class MarkdownProcessor:
         labelled_lines = self.collect_labels(markdown_lines)
         return self.replace_references(labelled_lines)
 
-def process_mdx_file(input_file):
+def process_mdx_file(input_file, output_file):
     """
     Reads a .mdx file, applies MarkdownProcessor, and writes the processed .md file.
     """
@@ -161,13 +161,12 @@ def process_mdx_file(input_file):
     if ext.lower() != ".mdx":
         raise ValueError("Error: Input file must have a .mdx extension.")
 
-    output_file = f"{base_name}.md"
-
+    base_name, ext = os.path.splitext(output_file)
+    if ext.lower() != ".md":
+        raise ValueError("Error: Output file must have a .md extension.")
+    
     with open(input_file, "r", encoding="utf-8") as file:
         markdown_lines = file.readlines()
-
-    #with open(input_file, "r", encoding="utf-8") as file:
-    #    markdown_text = file.read()
 
     processor = MarkdownProcessor()
     processed_text = processor.process_markdown(markdown_lines)
@@ -177,20 +176,23 @@ def process_mdx_file(input_file):
                    "You can obtain mdx.py from https://github.com/dosirrah/mdx -->\n")
         file.writelines(processed_text)
 
-    print(f"Processed file saved as: {output_file}")
 
 
-
-def process_notebook(input_file):
+def process_notebook(input_file, output_file):
     """
     Reads a Jupyter or Databricks notebook (`.ipynb`, `.source`),
     processes Markdown cells, and writes the modified notebook.
     """
     base_name, ext = os.path.splitext(input_file)
-    if ext.lower() not in {".ipynb", ".source"}:
+    ext = ext.lower()
+    if ext not in {".ipynb", ".source"}:
         raise ValueError("Error: Input file must be a .ipynb or .source notebook.")
 
-    output_file = f"{base_name}_processed{ext}"
+    _, oext = os.path.splitext(output_file)
+    oext = oext.lower()
+    if ext != oext:
+        raise ValueError(f"Error: Output file {output_file} must match input file type:"
+                         f"it must have {ext} file extension.")
 
     with open(input_file, "r", encoding="utf-8") as file:
         notebook_json = json.load(file)
@@ -222,16 +224,21 @@ def main():
     """Handles command-line arguments and runs the reference preprocessor."""
     parser = argparse.ArgumentParser(description="Process Markdown references and numbering.")
     parser.add_argument("input_file", help="Path to the input file (.mdx, .ipynb, .source).")
+    parser.add_argument("output_file", nargs="?", default="",
+                        help="Path to the output file (.md, .ipynb, .source).")
 
     args = parser.parse_args()
 
     try:
         if args.input_file.endswith(".mdx"):
-            process_mdx_file(args.input_file)
+            output_file = f"{base_name}.md" if not args.output_file else args.output_file
+            process_mdx_file(args.input_file, output_file)
         elif args.input_file.endswith((".ipynb", ".source")):
+            output_file = f"{base_name}_processed{ext}" if not args.output_file else args.output_file
             process_notebook(args.input_file)
         else:
             raise ValueError("Unsupported file format. Use .mdx, .ipynb, or .source.")
+        print(f"Processed file saved as: {output_file}")
 
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
