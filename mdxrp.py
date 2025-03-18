@@ -235,7 +235,7 @@ def main():
             process_mdx_file(args.input_file, output_file)
         elif args.input_file.endswith((".ipynb", ".source")):
             output_file = f"{base_name}_processed{ext}" if not args.output_file else args.output_file
-            process_notebook(args.input_file)
+            process_notebook(args.input_file, output_file)
         else:
             raise ValueError("Unsupported file format. Use .mdx, .ipynb, or .source.")
         print(f"Processed file saved as: {output_file}")
