@@ -1,7 +1,7 @@
 import pytest
 import tempfile
 import os
-from mdx import process_mdx_file, UndefinedReferenceError
+from mdxrp import process_mdx_file, UndefinedReferenceError
 
 @pytest.fixture
 def temp_mdx_file():

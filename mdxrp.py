@@ -157,14 +157,14 @@ def process_mdx_file(input_file, output_file):
     """
     Reads a .mdx file, applies MarkdownProcessor, and writes the processed .md file.
     """
-    base_name, ext = os.path.splitext(input_file)
+    _, ext = os.path.splitext(input_file)
     if ext.lower() != ".mdx":
         raise ValueError("Error: Input file must have a .mdx extension.")
 
-    base_name, ext = os.path.splitext(output_file)
+    _, ext = os.path.splitext(output_file)
     if ext.lower() != ".md":
         raise ValueError("Error: Output file must have a .md extension.")
-    
+
     with open(input_file, "r", encoding="utf-8") as file:
         markdown_lines = file.readlines()
 
@@ -183,7 +183,7 @@ def process_notebook(input_file, output_file):
     Reads a Jupyter or Databricks notebook (`.ipynb`, `.source`),
     processes Markdown cells, and writes the modified notebook.
     """
-    base_name, ext = os.path.splitext(input_file)
+    _, ext = os.path.splitext(input_file)
     ext = ext.lower()
     if ext not in {".ipynb", ".source"}:
         raise ValueError("Error: Input file must be a .ipynb or .source notebook.")
@@ -229,12 +229,15 @@ def main():
 
     args = parser.parse_args()
 
+    base_name, ext = os.path.splitext(args.input_file)
+
     try:
+        output_file = args.output_file
         if args.input_file.endswith(".mdx"):
-            output_file = f"{base_name}.md" if not args.output_file else args.output_file
+            output_file = f"{base_name}.md" if not output_file else output_file
             process_mdx_file(args.input_file, output_file)
         elif args.input_file.endswith((".ipynb", ".source")):
-            output_file = f"{base_name}_processed{ext}" if not args.output_file else args.output_file
+            output_file = f"{base_name}_processed{ext}" if not output_file else output_file
             process_notebook(args.input_file, output_file)
         else:
             raise ValueError("Unsupported file format. Use .mdx, .ipynb, or .source.")

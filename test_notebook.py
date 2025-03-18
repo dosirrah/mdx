@@ -2,7 +2,7 @@ import pytest
 import json
 import tempfile
 import os
-from mdx import process_notebook, MarkdownProcessor
+from mdxrp import process_notebook, MarkdownProcessor
 
 
 # format of a jupyter notebook.
