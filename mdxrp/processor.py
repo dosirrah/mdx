@@ -3,7 +3,6 @@
    support for references and labels.   See READE.md in this directory for details."""
 
 import re
-import argparse
 import os
 import json
 import sys
