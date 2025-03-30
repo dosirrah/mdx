@@ -6,10 +6,9 @@ from mdxrp import process_mdx_file, UndefinedReferenceError
 @pytest.fixture
 def temp_mdx_file():
     """Creates a temporary .mdx file and returns its path."""
-    yield "test.mdx"
-    #with tempfile.TemporaryDirectory() as temp_dir:
-    #    file_path = os.path.join(temp_dir, "test.mdx")
-    #    yield file_path
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_path = os.path.join(temp_dir, "test.mdx")
+        yield file_path
 
 def write_test_file(file_path, content):
     """Helper function to write test content to a file."""
