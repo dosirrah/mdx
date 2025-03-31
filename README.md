@@ -5,6 +5,17 @@
 mdx into valid markdown.  So far these extensions only add the ability
 to include labels and references. 
 
+## Installation
+
+```bash
+pip install git@github.com:dosirrah/mdx.git
+```
+
+Alternatively, you can clone the repository:
+
+    git clone https://github.com/dosirrah/mdx.git
+    cd mdx
+    pip install .
 
 ## Markdown for Labels and References
 
