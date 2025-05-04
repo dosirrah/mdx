@@ -6,6 +6,12 @@ import argparse
 import os
 import sys
 from .processor import process_mdx_file, process_notebook
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("mdxrp")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 
 ### **Main CLI Handler**
@@ -16,6 +22,7 @@ def main():
     parser.add_argument("output_file", nargs="?", default="",
                         help="Path to the output file (.md, .ipynb, .source).")
 
+    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     args = parser.parse_args()
 
     base_name, ext = os.path.splitext(args.input_file)
