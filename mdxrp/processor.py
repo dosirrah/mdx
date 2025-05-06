@@ -46,13 +46,12 @@ class MarkdownProcessor:
                     self.group_counters[group] += 1
 
             # Find all global @label patterns (not part of group:label)
-            for match in re.finditer(r"@([a-zA-Z0-9_]+)", markdown_text):
+            for match in re.finditer(r"@([a-zA-Z0-9_]+)(?!:[a-zA-Z0-9_])\b", markdown_text):
                 label = match.group(1)
-                # Skip if this was already matched as a group:label
-                if any(label == key.split(":")[-1] for key in self.label_map if ":" in key):
-                    continue
                 if label not in self.label_map:
                     self.label_map[label] = str(self.global_counter)
+                    print(f"global_counter now {self.global_counter} for label {label}")
+                    sys.stdout.flush()
                     self.global_counter += 1
 
     def replace(self, markdown_lines):
