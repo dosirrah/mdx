@@ -49,7 +49,7 @@ class MarkdownProcessor:
             for match in re.finditer(r"@([a-zA-Z0-9_]+)(?!:[a-zA-Z0-9_])\b", markdown_text):
                 label = match.group(1)
                 if label not in self.label_map:
-                    self.labsllabel_map[label] = str(self.global_counter)
+                    self.label_map[label] = str(self.global_counter)
                     self.global_counter += 1
 
     def replace(self, markdown_lines):
