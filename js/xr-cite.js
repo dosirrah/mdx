@@ -67,7 +67,10 @@
         const frag = document.createDocumentFragment();
         while ((m = re.exec(text)) !== null) {
           const [full, key, bang] = m;
-          const n = citeMap.get(key) ?? citeMap.set(key, nextCite++).get(key) ?? (nextCite - 1);
+          const n = citeMap.has(key) ? citeMap.get(key) : (() => {
+            citeMap.set(key, nextCite);
+            return nextCite++;
+          })();
           frag.appendChild(document.createTextNode(text.slice(last, m.index)));
           const a = document.createElement('a');
           a.href = `#bib-${key}`;
