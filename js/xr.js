@@ -101,8 +101,8 @@
   }
 
   if (typeof MutationObserver !== 'undefined') {
-    const obs = new MutationObserver(() => processAll());
-    obs.observe(document.body, { childList: true, subtree: true });
+    //const obs = new MutationObserver(() => processAll());
+    //obs.observe(document.body, { childList: true, subtree: true });
   }
 
   if (document.readyState === 'loading') {
