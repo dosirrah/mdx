@@ -1,72 +1,96 @@
 (() => {
-  const idMap = new Map();
-  let counter = 0;
+  const labelMap = new Map();
+  const typeCounters = new Map();
 
-  function rewriteNode(cellElement) {
-    const re = /(@|#)([A-Za-z0-9:_\-]+)/g;
+  const TAGGABLE_TYPES = new Set(['eq', 'Eq']);
 
-    function transformText(textNode) {
-      const data = textNode.data;
-      const frag = document.createDocumentFragment();
-      let last = 0;
-      let m;
+  function toId(type, id) {
+    return type ? `${type}:${id}` : id;
+  }
 
-      while ((m = re.exec(data)) !== null) {
-        const [full, kind, id] = m;
-        frag.appendChild(document.createTextNode(data.slice(last, m.index)));
-        last = m.index + full.length;
+  function rewriteText(textNode) {
+    const re = /(@|#)([A-Za-z]+:)?([A-Za-z0-9:_\-]+)(!?)/g;
+    let m, last = 0;
+    const frag = document.createDocumentFragment();
 
-        if (kind === '@') {
-          if (!idMap.has(id)) idMap.set(id, ++counter);
-          const num = idMap.get(id);
-          const span = document.createElement('span');
-          span.textContent = num;
-          span.insertAdjacentHTML(
-            'beforeend',
-            `<span style="display:none">\$begin:math:text$\\\\label{${id}}\\$end:math:text$</span>`
-          );
-          frag.appendChild(span);
+    const data = textNode.data;
+
+    while ((m = re.exec(data)) !== null) {
+      const [full, sym, rawType, id, bang] = m;
+      const type = rawType ? rawType.slice(0, -1) : null;
+      const key = toId(type, id);
+
+      frag.appendChild(document.createTextNode(data.slice(last, m.index)));
+      last = m.index + full.length;
+
+      if (sym === '@') {
+        let n;
+        if (!labelMap.has(key)) {
+          if (type) {
+            n = (typeCounters.get(type) ?? 0) + 1;
+            typeCounters.set(type, n);
+          } else {
+            n = (typeCounters.get('_global') ?? 0) + 1;
+            typeCounters.set('_global', n);
+          }
+          labelMap.set(key, { type, n, id });
         } else {
-          const num = idMap.get(id) ?? '??';
-          const span = document.createElement('span');
-          span.textContent = num;
-          span.insertAdjacentHTML(
-            'beforeend',
-            `\$begin:math:text$\\\\ref{${id}}\\$end:math:text$`
-          );
-          frag.appendChild(span);
+          n = labelMap.get(key).n;
         }
+
+        const span = document.createElement('span');
+        span.innerHTML = `<a id="${id}">${formatLabel(type, n)}</a>` +
+          `<span style="display:none">\$begin:math:text$\\\\label{${id}}\\$end:math:text$</span>`;
+        frag.appendChild(span);
       }
-      frag.appendChild(document.createTextNode(data.slice(last)));
-      textNode.parentNode?.replaceChild(frag, textNode);
+
+      if (sym === '#') {
+        const entry = labelMap.get(key);
+        const n = entry?.n ?? '??';
+        const label = formatLabel(entry?.type ?? type, n, bang === '!');
+        const a = document.createElement('a');
+        a.href = `#${id}`;
+        a.textContent = label;
+        frag.appendChild(a);
+      }
     }
 
-    function walk(n) {
-      if (n.nodeType === Node.TEXT_NODE) {
-        transformText(n);
-      } else {
-        n.childNodes.forEach(walk);
-      }
-    }
+    frag.appendChild(document.createTextNode(data.slice(last)));
+    textNode.parentNode.replaceChild(frag, textNode);
+  }
 
-    walk(cellElement);
+  function formatLabel(type, n, raw = false) {
+    if (type && TAGGABLE_TYPES.has(type.toLowerCase())) {
+      return raw ? `${n}` : `(${n})`;
+    }
+    return raw ? `${n}` : type ? `${type} ${n}` : `${n}`;
+  }
+
+  function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      rewriteText(node);
+    } else {
+      node.childNodes.forEach(walk);
+    }
+  }
+
+  function rewriteNode(node) {
+    walk(node);
   }
 
   function processAll() {
-    // Classic Jupyter and JupyterLab-compatible scan
     document.querySelectorAll('.text_cell_render, .jp-RenderedHTMLCommon')
       .forEach(rewriteNode);
 
     if (window.MathJax) {
       if (window.MathJax.typesetPromise) {
-        MathJax.typesetPromise(); // MathJax v3
+        MathJax.typesetPromise();
       } else if (window.MathJax.Hub?.Queue) {
-        MathJax.Hub.Queue(['Typeset', MathJax.Hub]); // MathJax v2
+        MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
       }
     }
   }
 
-  // Re-run on render (classic Notebook)
   if (typeof Jupyter !== 'undefined' && Jupyter.notebook?.events) {
     Jupyter.notebook.events.on('rendered.MarkdownCell', (evt, data) => {
       rewriteNode(data.cell.element[0]);
@@ -76,10 +100,9 @@
     });
   }
 
-  // For JupyterLab: observe dynamic Markdown rendering
   if (typeof MutationObserver !== 'undefined') {
-    const observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
+    const observer = new MutationObserver(muts => {
+      muts.forEach(m => {
         m.addedNodes?.forEach(node => {
           if (node instanceof HTMLElement &&
               node.classList.contains('jp-RenderedHTMLCommon')) {
@@ -89,19 +112,14 @@
             }
           }
         });
-      }
+      });
     });
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  // Initial pass
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', processAll);
   } else {
     processAll();
   }
-
 })();
