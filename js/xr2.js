@@ -125,21 +125,28 @@
 
     const cells = notebookPanel.content.widgets;
     for (const cell of cells) {
+      console.log("1 scanLab")      
       if (cell.model?.type !== 'markdown') continue;
+      console.log("2 scanLab")      
       const text = cell.model.value.text;
       const re = /@([A-Za-z]+:)?([A-Za-z0-9:_\-]+)/g;
       let m;
       while ((m = re.exec(text)) !== null) {
+        console.log("2 scanLab")      
         const rawType = m[1], id = m[2];
+        console.log("3 scanLab")      
         const type = rawType ? rawType.slice(0, -1) : null;
         const key = toId(type, id);
+        console.log("4 scanLab")      
         if (!labelMap.has(key)) {
           const counterKey = type ?? '_global';
           const n = (typeCounters.get(counterKey) ?? 0) + 1;
           typeCounters.set(counterKey, n);
           labelMap.set(key, { type, id, n });
         }
+        console.log("5 scanLab")      
       }
+      console.log("6 scanLab")      
     }
     console.log("scanLab: Returning from scanLab");
   }
