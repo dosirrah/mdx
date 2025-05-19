@@ -147,13 +147,15 @@
     
   function processAll(notebookPanel = null) {
     console.log("Inside processAll()");
-    
+
     if (notebookPanel) {
-      console.log("Calling scanLab");
-      scanLab(notebookPanel);    // Scan a JupyterLab notebook instance
+      scanLab(notebookPanel);  // <- Populate labelMap, typeCounters
+    } else if (typeof Jupyter !== 'undefined' && Jupyter.notebook) {
+      scanClassic();
     } else {
-      console.log("Calling scanClassic");
-      scanClassic();             // Fallback: scan classic notebook/HTML DOM
+      const panels = document.querySelectorAll('.jp-NotebookPanel');
+      if (panels.length > 0) panels.forEach(p => scanLab(p));
+      else console.warn("[xr] Could not detect notebook type. No scanning performed.");
     }
 
     console.log("Calling rewriteAll()");
