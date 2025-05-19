@@ -140,10 +140,18 @@
     }
   }
 
+    
   function processAll(notebookPanel = null) {
-    if (notebookPanel) scanLab(notebookPanel);
-    else scanClassic();
-    rewriteAll();
+    labelMap.clear();       // Clear all previous label-to-number mappings
+    typeCounters.clear();   // Reset counters for each named type
+    
+    if (notebookPanel) {
+      scanLab(notebookPanel);    // Scan a JupyterLab notebook instance
+    } else {
+      scanClassic();             // Fallback: scan classic notebook/HTML DOM
+    }
+
+    rewriteAll();           // Rewrite references and rerun MathJax
   }
 
   // ---------------------------------------------------------------------------
