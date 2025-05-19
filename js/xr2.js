@@ -215,8 +215,10 @@
   // Fallback: run once on DOM load
   // ---------------------------------------------------------------------------
   if (document.readyState === 'loading') {
+    console.log("addEventListner DOMContentLoaded");
     document.addEventListener('DOMContentLoaded', () => processAll());
   } else {
+    console.log("!!! Already loaded. Calling processAll directly from IIFE");
     processAll();
   }
     
