@@ -122,6 +122,7 @@
     typeCounters.clear();
     console.log("scanLab: After clearing labelMap and typeCounters.");
     if (!notebookPanel?.content?.widgets) return;
+    console.log("0 scanLab");
 
     const cells = notebookPanel.content.widgets;
     for (const cell of cells) {
