@@ -1,3 +1,8 @@
+
+// The `(() => {` is a design pattern called an IIFE, which stands for
+// Immediately Invoked Function Expression.  It runs immediately each
+// time this script is loaded.
+
 (() => {
   // ----------------------------------------------------------------------------
   // xr.js — Cross-reference support for classic Notebook and JupyterLab
@@ -200,5 +205,7 @@
   } else {
     processAll();
   }
+    
+  window.processAll = processAll;
 
 })();
