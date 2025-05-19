@@ -13,7 +13,9 @@
   window.xrBooted = true;
 
   const labelMap = new Map();
-  const typeCounters = new Map();
+    const typeCounters = new Map();
+
+  // refers to \tag{foo} in LaTeX equations.
   const TAGGABLE_TYPES = new Set(['eq', 'Eq']);
 
   function toId(type, id) {
@@ -118,6 +120,7 @@
   function scanLab(notebookPanel) {
     labelMap.clear();
     typeCounters.clear();
+    console.log("scanLab: After clearing labelMap and typeCounters.");
     if (!notebookPanel?.content?.widgets) return;
 
     const cells = notebookPanel.content.widgets;
@@ -138,19 +141,22 @@
         }
       }
     }
+    console.log("scanLab: Returning from scanLab");
   }
 
     
   function processAll(notebookPanel = null) {
-    labelMap.clear();       // Clear all previous label-to-number mappings
-    typeCounters.clear();   // Reset counters for each named type
+    console.log("Inside processAll()");
     
     if (notebookPanel) {
+      console.log("Calling scanLab");
       scanLab(notebookPanel);    // Scan a JupyterLab notebook instance
     } else {
+      console.log("Calling scanClassic");
       scanClassic();             // Fallback: scan classic notebook/HTML DOM
     }
 
+    console.log("Calling rewriteAll()");
     rewriteAll();           // Rewrite references and rerun MathJax
   }
 
