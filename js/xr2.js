@@ -156,23 +156,61 @@
     console.log("scanLab: Returning from scanLab");
   }
 
+  async function resolveAndProcessLabNotebook() {
+    console.log("resolveAndProcessLabNotebook 1");
+
+    try {
+      const nb = await import('@jupyterlab/notebook');
+      const { INotebookTracker } = nb;
+  
+      const tracker = window.jupyterapp?.serviceManager?.get?.(INotebookTracker.id);
+      if (tracker?.currentWidget) {
+        console.log("resolveAndProcessLabNotebook 2 calling scanLab");     
+        scanLab(tracker.currentWidget);
+        rewriteAll();
+      } else {
+        console.warn("[xr] Could not detect notebook panel via tracker.");
+      }
+    } catch (err) {
+      console.warn("[xr] JupyterLab async import failed", err);
+    }
+  }
     
+  //function processAll(notebookPanel = null) {
+  //  console.log("Inside processAll()");
+  //
+  //  if (notebookPanel) {
+  //    scanLab(notebookPanel);  // <- Populate labelMap, typeCounters
+  //  } else if (typeof Jupyter !== 'undefined' && Jupyter.notebook) {
+  //    scanClassic();
+  //  } else {
+  //    const panels = document.querySelectorAll('.jp-NotebookPanel');
+  //    if (panels.length > 0) panels.forEach(p => scanLab(p));
+  //    else console.warn("[xr] Could not detect notebook type. No scanning performed.");
+  //  }
+  //
+  //  console.log("Calling rewriteAll()");
+  //  rewriteAll();           // Rewrite references and rerun MathJax
+  //}
+
   function processAll(notebookPanel = null) {
     console.log("Inside processAll()");
 
     if (notebookPanel) {
-      scanLab(notebookPanel);  // <- Populate labelMap, typeCounters
+      scanLab(notebookPanel);  // Populate labelMap, typeCounters
+      rewriteAll();
     } else if (typeof Jupyter !== 'undefined' && Jupyter.notebook) {
       scanClassic();
+      rewriteAll();
     } else {
-      const panels = document.querySelectorAll('.jp-NotebookPanel');
-      if (panels.length > 0) panels.forEach(p => scanLab(p));
-      else console.warn("[xr] Could not detect notebook type. No scanning performed.");
+      // fallback to async import for JupyterLab
+      console.log("Calling resolveAndProcessLabNotebook");
+      resolveAndProcessLabNotebook();
     }
 
-    console.log("Calling rewriteAll()");
-    rewriteAll();           // Rewrite references and rerun MathJax
   }
+
+    
 
   // ---------------------------------------------------------------------------
   // Classic Notebook hook
