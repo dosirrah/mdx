@@ -1,22 +1,12 @@
-// xr.js — cross‑reference helper **with zero‑install JupyterLab hook**
-// -----------------------------------------------------------------------------
-// ‑ Keeps every original behaviour (label scanning / rewriting for classic
-//   Notebook **and** static page loads) **and** now hooks into JupyterLab 3/4 (and
-//   Notebook 7) without requiring users to install an extension.
-//
-// HOW IT WORKS
-//   • Classic Notebook → still uses the built‑in 'rendered.MarkdownCell' event.
-//   • JupyterLab      → waits for the front‑end to finish booting, grabs the
-//     global INotebookTracker, and attaches to each Markdown cell’s
-//     `renderedChanged` signal.  When the user hits Cmd/Ctrl‑Return or when the
-//     notebook loads, `processAll()` runs — same semantics as before.
-//   • The heavyweight MutationObserver remains commented out.
-// -----------------------------------------------------------------------------
-
 (() => {
-  // ---------------------------------------------------------------------------
-  //  Original: book‑keeping structures and helpers
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------------
+  // xr.js — Cross-reference support for classic Notebook and JupyterLab
+  // ----------------------------------------------------------------------------
+
+  // Global state to avoid reinstallation
+  if (window.xrBooted) return;
+  window.xrBooted = true;
+
   const labelMap = new Map();
   const typeCounters = new Map();
   const TAGGABLE_TYPES = new Set(['eq', 'Eq']);
@@ -32,44 +22,11 @@
     return raw ? `${n}` : type ? `${type} ${n}` : `${n}`;
   }
 
-  // ---------------------------------------------------------------------------
-  //  Original: sweep notebook, gather @labels
-  // ---------------------------------------------------------------------------
-  function scanLabels() {
-    labelMap.clear();
-    typeCounters.clear();
-    document
-      .querySelectorAll('.text_cell_render, .jp-RenderedHTMLCommon')
-      .forEach(cell => {
-        const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-        while (walker.nextNode()) {
-          const re = /@([A-Za-z]+:)?([A-Za-z0-9:_\-]+)/g;
-          let m;
-          while ((m = re.exec(walker.currentNode.data)) !== null) {
-            const rawType = m[1],
-              id = m[2];
-            const type = rawType ? rawType.slice(0, -1) : null;
-            const key = toId(type, id);
-            if (!labelMap.has(key)) {
-              const counterKey = type ?? '_global';
-              const n = (typeCounters.get(counterKey) ?? 0) + 1;
-              typeCounters.set(counterKey, n);
-              labelMap.set(key, { type, id, n });
-            }
-          }
-        }
-      });
-  }
-
-  // ---------------------------------------------------------------------------
-  //  Original: rewrite @/# references inside a TEXT_NODE
-  // ---------------------------------------------------------------------------
   function rewriteText(textNode) {
     const re = /(@|#)([A-Za-z]+:)?([A-Za-z0-9:_\-]+)(!?)/g;
     const data = textNode.data;
     const frag = document.createDocumentFragment();
-    let last = 0,
-      m;
+    let last = 0, m;
 
     while ((m = re.exec(data)) !== null) {
       const [full, sym, rawType, id, bang] = m;
@@ -85,7 +42,7 @@
         const span = document.createElement('span');
         span.innerHTML =
           `<a id="${id}">${formatLabel(type, n)}</a>` +
-          `<span style="display:none">$begin:math:text$\\label{${id}}$end:math:text$</span>`;
+          `<span style="display:none">\\label{${id}}</span>`;
         frag.appendChild(span);
       }
 
@@ -122,76 +79,126 @@
     }
   }
 
-  function processAll() {
-    scanLabels();
+  // ---------------------------------------------------------------------------
+  // Classic Notebook: scan from cell.get_text()
+  // ---------------------------------------------------------------------------
+  function scanClassic() {
+    labelMap.clear();
+    typeCounters.clear();
+    if (!window.Jupyter?.notebook?.get_cells) return;
+
+    const cells = Jupyter.notebook.get_cells();
+    for (const cell of cells) {
+      if (cell.cell_type !== 'markdown') continue;
+      const text = cell.get_text();
+      const re = /@([A-Za-z]+:)?([A-Za-z0-9:_\-]+)/g;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        const rawType = m[1], id = m[2];
+        const type = rawType ? rawType.slice(0, -1) : null;
+        const key = toId(type, id);
+        if (!labelMap.has(key)) {
+          const counterKey = type ?? '_global';
+          const n = (typeCounters.get(counterKey) ?? 0) + 1;
+          typeCounters.set(counterKey, n);
+          labelMap.set(key, { type, id, n });
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // JupyterLab: scan from notebookPanel.model.cells
+  // ---------------------------------------------------------------------------
+  function scanLab(notebookPanel) {
+    labelMap.clear();
+    typeCounters.clear();
+    if (!notebookPanel?.content?.widgets) return;
+
+    const cells = notebookPanel.content.widgets;
+    for (const cell of cells) {
+      if (cell.model?.type !== 'markdown') continue;
+      const text = cell.model.value.text;
+      const re = /@([A-Za-z]+:)?([A-Za-z0-9:_\-]+)/g;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        const rawType = m[1], id = m[2];
+        const type = rawType ? rawType.slice(0, -1) : null;
+        const key = toId(type, id);
+        if (!labelMap.has(key)) {
+          const counterKey = type ?? '_global';
+          const n = (typeCounters.get(counterKey) ?? 0) + 1;
+          typeCounters.set(counterKey, n);
+          labelMap.set(key, { type, id, n });
+        }
+      }
+    }
+  }
+
+  function processAll(notebookPanel = null) {
+    if (notebookPanel) scanLab(notebookPanel);
+    else scanClassic();
     rewriteAll();
   }
 
   // ---------------------------------------------------------------------------
-  //  Classic Notebook hook (unchanged)
+  // Classic Notebook hook
   // ---------------------------------------------------------------------------
-  if (typeof Jupyter !== 'undefined' && Jupyter.notebook?.events) {
+  if (window.Jupyter?.notebook?.events) {
     Jupyter.notebook.events.on('rendered.MarkdownCell', () => processAll());
   }
 
   // ---------------------------------------------------------------------------
-  //  NEW: zero‑install JupyterLab hook
+  // JupyterLab hook — zero-install
   // ---------------------------------------------------------------------------
   (async () => {
     try {
-      if (window.xrLabHookInstalled) return; // singleton guard
-      if (!window.jupyterapp || !window.jupyterapp.started) return; // not Lab
+      if (!window.jupyterapp || !window.jupyterapp.started || window.xrLabHookInstalled) return;
+      await window.jupyterapp.started;
 
-      await window.jupyterapp.started; // wait for boot
-
-      // Dynamic import keeps the file self‑contained.
       const nb = await import('@jupyterlab/notebook');
       const { INotebookTracker } = nb;
-
       const tracker = window.jupyterapp.serviceManager?.get?.(INotebookTracker.id);
-      if (!tracker) return; // older Lab? fall back to MutationObserver (still off)
+      if (!tracker) return;
 
-      const wireCell = cell => {
+      function wireCell(cell, panel) {
         if (cell.model?.type !== 'markdown' || cell._xrWired) return;
         cell._xrWired = true;
         cell.renderedChanged.connect(() => {
-          if (cell.rendered) processAll();
+          if (cell.rendered) processAll(panel);
         });
-      };
+      }
 
-      // Existing notebooks/cells
-      tracker.forEach(panel => panel.content.widgets.forEach(wireCell));
+      // Handle existing notebooks
+      tracker.forEach(panel => {
+        panel.content.widgets.forEach(c => wireCell(c, panel));
+        panel.content.model?.cells.changed.connect(() =>
+          panel.content.widgets.forEach(c => wireCell(c, panel))
+        );
+      });
 
-      // Future notebooks/cells
+      // Handle future notebooks
       tracker.widgetAdded.connect((_, panel) => {
-        panel.content.widgets.forEach(wireCell);
-        // In‑notebook cell additions
-        panel.content.model?.cells.changed.connect(() => {
-          panel.content.widgets.forEach(wireCell);
-        });
+        panel.content.widgets.forEach(c => wireCell(c, panel));
+        panel.content.model?.cells.changed.connect(() =>
+          panel.content.widgets.forEach(c => wireCell(c, panel))
+        );
       });
 
       window.xrLabHookInstalled = true;
-      console.log('[xr] JupyterLab render hook ready');
+      console.log('[xr] JupyterLab cross-reference hook installed');
     } catch (err) {
-      console.warn('[xr] Unable to set up JupyterLab hook', err);
+      console.warn('[xr] Could not install JupyterLab hook:', err);
     }
   })();
 
   // ---------------------------------------------------------------------------
-  //  Heavy MutationObserver stays **commented out** (you may delete later)
-  // ---------------------------------------------------------------------------
-  if (typeof MutationObserver !== 'undefined') {
-    // const obs = new MutationObserver(() => processAll());
-    // obs.observe(document.body, { childList: true, subtree: true });
-  }
-
-  // ---------------------------------------------------------------------------
-  //  Run once on initial page load
+  // Fallback: run once on DOM load
   // ---------------------------------------------------------------------------
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', processAll);
+    document.addEventListener('DOMContentLoaded', () => processAll());
   } else {
     processAll();
   }
+
 })();
