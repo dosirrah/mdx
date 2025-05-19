@@ -214,6 +214,7 @@
   // ---------------------------------------------------------------------------
   // Fallback: run once on DOM load
   // ---------------------------------------------------------------------------
+  console.log("document.readyState == " + document.readyState);
   if (document.readyState === 'loading') {
     console.log("addEventListner DOMContentLoaded");
     document.addEventListener('DOMContentLoaded', () => processAll());
